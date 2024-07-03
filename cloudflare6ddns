@@ -1,24 +1,25 @@
 # Update Cloudflare DNS IPv6 address script
-# RouterOS version >= 6.44 is required
+# RouterOS version >= 7.15.1 is required
 
 # ** CONFIGURE SECTION **
 
 # IPv6 interface
-:local wanif    "lan1"
+:local wanif    "ether1"
 
 # Cloudflare section
-:local email    "e-mail"
-:local key      "token"
-:local zoneId   "zoneId"
-:local hostId   "hostId"
+:local email    "email"
+:local key "key"
+:local zoneId   "zoneid"
+:local hostId   "hostid"
 
 # Domain hostname
-:local hostName "host.yourdomain.com"
+:local hostName "hostname"
 
 # ** END OF CONFIGURE SECTION **
 
 # Get WAN interface IPv6 address
-:global ip6wan
+:local ip6wan [:resolve $hostName server=1.1.1.1 type=ipv6]
+
 :local ip6new [/ipv6 address get [/ipv6 address find interface=$wanif global] address]
 :set ip6new [:pick [:tostr $ip6new] 0 [:find [:tostr $ip6new] "/"]]
 
@@ -27,18 +28,20 @@
   :error "[Cloudflare DDNS] Could not get IPv6 for interface $wanif"
 }
 
+#:log info "[Cloudflare DDNS] ip6new - $ip6new"
+
 :if ($ip6new != $ip6wan) do={
 
-  :log info "[Cloudflare DDNS] IPv6 address for interface $wanif has been changed to $ip6new."
+  :log info "[Cloudflare DDNS] IPv6 address for interface $wanif has been changed to $ip6new"
 
   :local url    "https://api.cloudflare.com/client/v4/zones/$zoneId/dns_records/$hostId"
   :local header "X-Auth-Email: $email, X-Auth-Key: $key, content-type: application/json"
   :local data   "{\"type\":\"AAAA\",\"name\":\"$hostName\",\"content\":\"$ip6new\",\"ttl\":120}"
 
-#  :log info "[Cloudflare DDNS] URL: $url"
-#  :log info "[Cloudflare DDNS] HEADER: $header"
-#  :log info "[Cloudflare DDNS] DATA: $data"
-  :log info "[Cloudflare DDNS] Updating host $hostName address."
+  #:log info "[Cloudflare DDNS] URL: $url"
+  #:log info "[Cloudflare DDNS] HEADER: $header"
+  #:log info "[Cloudflare DDNS] DATA: $data"
+  :log info "[Cloudflare DDNS] Updating host $hostName address"
 
   :local jsonAnswer [/tool fetch mode=https http-method=put http-header-field=$header http-data=$data url=$url as-value output=user]
 
@@ -49,12 +52,14 @@
     $JSONUnload
 
     :if ($result = true) do={
-      :log info "[Cloudflare DDNS] Successfully updated IPv6 address to $ip6new."
+      :log info "[Cloudflare DDNS] Successfully updated IPv6 address to $ip6new"
       :set ip6wan $ip6new
     } else={
-      :log error "[Cloudflare DDNS] Error while updating IPv6 address."
+      :log error "[Cloudflare DDNS] Error while updating IPv6 address"
     }
   } else={
-    :log error "[Cloudflare DDNS] No answer from Cloudflare API."
+    :log error "[Cloudflare DDNS] No answer from Cloudflare API"
   }
+} else={
+  :log info "[Cloudflare DDNS] No IPv6 change for $hostName"
 }
